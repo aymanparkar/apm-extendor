@@ -1,80 +1,51 @@
 import React, { Fragment, useEffect, useState } from "react";
-
 import { proxy, useSnapshot } from "valtio";
 
-import { Tabs, Tab, Card, CardBody, Pagination, Chip } from "@nextui-org/react";
-import ApprovalsTab from "./ApprovalsTab";
-import RatingsTab from "./RatingsTab";
+import { Card, CardBody, Pagination } from "@nextui-org/react";
+import RenderContent from "./RenderContent";
 
-const useEmail = proxy({
+export const useEmail = proxy<any>({
   emails: [],
+  currentPage: 1
 });
-
 
 export default function TabsComponent() {
   const useEmailSnapshot = useSnapshot(useEmail)
 
-  const [currentPage, setCurrentPage] = useState(1)
-  const [selected, setSelected] = React.useState<any>("approval");
-  const totalPages = useEmailSnapshot.emails.filter((email: { type: string }) => email.type === selected).length ? useEmailSnapshot.emails.filter((email: { type: string }) => email.type === selected).length : 1
-
-  const getEmailTypePages = (type: string) => useEmailSnapshot.emails.filter((email: { type: string }) => email.type === type).length
+  const [totalPages, setTotalPages] = useState(0)
 
   useEffect(() => {
-    fetch("/api/email")
+    fetch("/api/config-emails")
       .then((response) => response.json())
       .then((data) => {
-        useEmail.emails = data;
+        useEmail.emails = data.flatMap((renderType: any) => renderType.data.map((email: any) => ({ ...email, ...renderType.config })))
+      }).then(() => {
+        setTotalPages(useEmail.emails.length)
       });
   }, [])
 
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [selected])
-
   return (
     <Fragment>
-      <div className="flex w-full flex-col">
-        <Tabs
-          selectedKey={selected}
-          onSelectionChange={setSelected}
-          size="lg" aria-label="Options">
-          <Tab key="approval" title={<div>Leave Approvals <Chip className="mx-2" variant="bordered" size="sm" color="danger">{getEmailTypePages('approval')}</Chip></div>}>
-            <Card>
-              <CardBody>
-                <ApprovalsTab
-                  onApprove={() => {
-                    setCurrentPage(currPage => currPage === totalPages ? 1 : currPage + 1)
-                  }}
-                  onReject={() => {
-                    setCurrentPage(currPage => currPage === totalPages ? 1 : currPage + 1)
-                  }}
-                  email={useEmailSnapshot.emails.filter((email: { type: string }) => email.type === 'approval')[currentPage - 1]} />
-              </CardBody>
-            </Card>
-          </Tab>
-          <Tab key="rating" title={<div>Employee Ratings <Chip className="mx-2" variant="bordered" size="sm" color="danger">{getEmailTypePages('rating')}</Chip></div>}>
-            <Card>
-              <CardBody>
-                <RatingsTab
-                  onSubmit={() => {
-                    setCurrentPage(currPage => currPage === totalPages ? 1 : currPage + 1)
-                  }}
-                  email={useEmailSnapshot.emails.filter((email: { type: string }) => email.type === 'rating')[currentPage - 1]} />
-              </CardBody>
-            </Card>
-          </Tab>
-        </Tabs>
+      <div className="flex lg:w-1/2 sm:w-full flex-col mb-4">
+        <Card>
+          <CardBody>
+            {useEmailSnapshot.emails.length ? <RenderContent onAction={() => {
+              useEmail.emails.splice(useEmailSnapshot.currentPage - 1, 1);
+            }} /> : <div className="flex justify-center items-center" style={{ minHeight: 200 }}>No pending actions items</div>}
+          </CardBody>
+        </Card>
       </div>
-      <div className="flex w-full justify-center">
+      {useEmailSnapshot.emails.length ? <div className="flex w-full justify-center">
         <Pagination
           loop
-          showControls
           initialPage={1}
-          page={currentPage}
-          total={totalPages}
-          onChange={setCurrentPage} />
-      </div>
-    </Fragment>
+          page={useEmailSnapshot.currentPage}
+          total={useEmailSnapshot.emails.length || 0}
+          onChange={(value) => useEmail.currentPage = value}
+          {...(totalPages > 5 ? { showControls: true } : { showControls: false })}
+        />
+      </div> : <Fragment />}
+
+    </Fragment >
   );
 }
